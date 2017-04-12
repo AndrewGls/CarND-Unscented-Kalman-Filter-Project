@@ -1,0 +1,8 @@
+# silly macOS
+.DS_Store
+
+# build files
+build/
+
+xcode_ukf/
+vs_ukf/

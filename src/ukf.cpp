@@ -93,18 +93,14 @@ void UKF::ProcessMeasurement(const MeasurementPackage& pack)
     assert(dt >= 0.);
     
     // Do prediction.
+	// Division large time step into small steps helps to maintain numerical stability.
+	// Without this step the UKF generates larger RMSE. To reduce RMSE it is possible to reduce std_a_ & std_yawdd_. 
     while (dt > 0.1) {
         Prediction(0.05);
         dt -= 0.05;
     }
     
     Prediction(dt);
-    
-//    cout << "Prediction " << endl;
-//    cout << "x_: " << x_ << endl;
-//    cout << "P_: " << P_ << endl;
-    
-//    int iii = 0;
     
     // Do Update.
     if (use_laser_ && pack.IsLidar()) {
@@ -114,12 +110,6 @@ void UKF::ProcessMeasurement(const MeasurementPackage& pack)
         UpdateRadar(pack);
         previous_timestamp_ = pack.timestamp_;
     }
-    
- //       cout << "Update " << endl;
- //       cout << "x_: " << x_ << endl;
- //       cout << "P_: " << P_ << endl;
-    
- //   int kkk = 0;
 }
 
 void UKF::Init(const MeasurementPackage& pack)
@@ -146,7 +136,9 @@ void UKF::Init(const MeasurementPackage& pack)
         const auto rho = z(0);
         const auto phi = z(1);
         const auto& pos = Tools::PolarToCartesian(rho, phi); // returns (px, py)
-        x_ << pos(0), pos(1), z(2), 0, 0;                    // sets (px, py, v, yaw_angle, yaw_rate)
+		// Velocity is approximated by radial velocity only
+		// because there is no information about azimuth velocity.
+        x_ << pos(0), pos(1), z(2), 0, 0; // sets (px, py, v, yaw_angle, yaw_rate)
     }
     else if (pack.sensor_type_ == MeasurementPackage::LASER) {
         // Initialize state as (px, py, v, yaw_angle, yaw_rate)
@@ -166,21 +158,12 @@ void UKF::Prediction(double delta_t)
 {
     // Estimate the object's location. Modify the state
     // vector, x_. Predict sigma points, the state, and the state covariance matrix.
-    CalcAugmentedSigmaPoints();
-    
-    //cout << "Xsig_aug_: " << Xsig_aug_ << endl;
-    
-    PredictSigmaPoints(delta_t);
-    
-    //predict state mean
+    CalcAugmentedSigmaPoints();    
+    PredictSigmaPoints(delta_t);    
+    // predict the state mean vector
     x_ = UKF::CalcPredictedMean(Xsig_pred_, weights_);
-    
+	// predict the state covariance matrix
     PredictCovariance();
-    
-//    cout << "x_: " << x_ << endl;
-//    cout << "P_: " << P_ << endl;
-    
-//    int iii = 0;
 }
 
 /**
@@ -192,10 +175,10 @@ void UKF::UpdateLidar(const MeasurementPackage& pack)
     // Predict measurement:
     
     // predicted measurement sigma points matrix by transforming sigma points into measurement space
-    MatrixXd Zsig_pred = TransformLidarSigmaPointsIntoMeasurementSpace();
+	const auto& Zsig_pred = TransformLidarSigmaPointsIntoMeasurementSpace();
     
     // calculate mean predicted measurement
-    VectorXd z_pred = UKF::CalcPredictedMean(Zsig_pred, weights_);
+    const auto& z_pred = UKF::CalcPredictedMean(Zsig_pred, weights_);
     assert(z_pred.rows() == n_z_lidar_);
     
     // Calculate measurement covariance matrix S and cross correlation Tc matrix.
@@ -208,14 +191,12 @@ void UKF::UpdateLidar(const MeasurementPackage& pack)
     for (int i = 0; i < n_sigma_; i++)
     {
         //residual
-        VectorXd z_diff = Zsig_pred.col(i) - z_pred;
+        auto z_diff = Zsig_pred.col(i) - z_pred;
         
         S += weights_(i) * z_diff * z_diff.transpose();
         
         // state difference
         VectorXd x_diff = Xsig_pred_.col(i) - x_;
-        
-        //angle normalization
         x_diff(3) = Tools::NormalizeAngle(x_diff(3));
         
         Tc += weights_(i) * x_diff * z_diff.transpose();
@@ -230,11 +211,11 @@ void UKF::UpdateLidar(const MeasurementPackage& pack)
     //Kalman gain K;
     MatrixXd K = Tc * S.inverse();
     
-    const VectorXd& z = pack.raw_measurements_;
+    const auto& z = pack.raw_measurements_;
     assert(z.rows() == 2);
     
     //residual
-    VectorXd z_diff = z - z_pred;
+    const auto& z_diff = z - z_pred;
     
     // Update state mean and covariance matrix
     x_ += K * z_diff;
@@ -254,12 +235,10 @@ void UKF::UpdateRadar(const MeasurementPackage& pack)
     // Predict measurement:
     
     // predicted measurement sigma points matrix by transforming sigma points into measurement space.
-    MatrixXd Zsig_pred = TransformRadarSigmaPointsIntoMeasurementSpace();
-    
- //   cout << "Zsig_pred: " << Zsig_pred << endl;
+    const auto& Zsig_pred = TransformRadarSigmaPointsIntoMeasurementSpace();
     
     // calculate mean predicted measurement
-    VectorXd z_pred = UKF::CalcPredictedMean(Zsig_pred, weights_);
+    const auto& z_pred = UKF::CalcPredictedMean(Zsig_pred, weights_);
     assert(z_pred.rows() == n_z_radar_);
     
     // Calculate measurement covariance matrix S and cross correlation Tc matrix.
@@ -273,17 +252,13 @@ void UKF::UpdateRadar(const MeasurementPackage& pack)
     for (int i = 0; i < n_sigma_; i++)
     {
         //residual
-        VectorXd z_diff = Zsig_pred.col(i) - z_pred;
-        
-        //angle normalization
+        VectorXd z_diff = Zsig_pred.col(i) - z_pred;        
         z_diff(1) = Tools::NormalizeAngle(z_diff(1));
         
         S += weights_(i) * z_diff * z_diff.transpose();
         
         // state difference
         VectorXd x_diff = Xsig_pred_.col(i) - x_;
-        
-        //angle normalization
         x_diff(3) = Tools::NormalizeAngle(x_diff(3));
         
         Tc += weights_(i) * x_diff * z_diff.transpose();
@@ -296,20 +271,18 @@ void UKF::UpdateRadar(const MeasurementPackage& pack)
     // Update measurement state:
     
     //Kalman gain K;
-    MatrixXd K = Tc * S.inverse();
+    const auto& K = Tc * S.inverse();
     
-    const VectorXd& z = pack.raw_measurements_;
+    const auto& z = pack.raw_measurements_;
     assert(z.rows() == 3);
     
     //residual
     VectorXd z_diff = z - z_pred;
-    
-    //angle normalization
     z_diff(1) = Tools::NormalizeAngle(z_diff(1));
     
     // Update state mean and covariance matrix
     x_ += K * z_diff;
-    x_(3) = Tools::NormalizeAngle(x_(3)); //angle normalization
+    x_(3) = Tools::NormalizeAngle(x_(3));
     P_ -= K * S * K.transpose();
 
     // Calculate Normalized Innovation Squared (NIS).
@@ -356,20 +329,20 @@ void UKF::PredictSigmaPoints(double delta_t)
     // augmented state vector: [px, py, v, phi, phi-dot, nu-a, nu-phi-dot-dot]^t
     // model state vector: [px, py, v, phi, phi-dot]^t
     
-    const double delta_t2 = delta_t * delta_t;
+    const auto delta_t2 = delta_t * delta_t;
     
     //write predicted sigma points into right column
     //predict sigma points
     for (int i = 0; i< n_sigma_; i++)
     {
         //extract values for better readability
-        double p_x = Xsig_aug_(0,i);
-        double p_y = Xsig_aug_(1,i);
-        double v = Xsig_aug_(2,i);
-        double yaw = Xsig_aug_(3,i);
-        double yawd = Xsig_aug_(4,i);
-        double nu_a = Xsig_aug_(5,i);
-        double nu_yawdd = Xsig_aug_(6,i);
+		auto p_x = Xsig_aug_(0,i);
+		auto p_y = Xsig_aug_(1,i);
+		auto v = Xsig_aug_(2,i);
+		auto yaw = Xsig_aug_(3,i);
+		auto yawd = Xsig_aug_(4,i);
+		auto nu_a = Xsig_aug_(5,i);
+		auto nu_yawdd = Xsig_aug_(6,i);
         
         //predicted state values
         double px_p, py_p;
@@ -384,9 +357,9 @@ void UKF::PredictSigmaPoints(double delta_t)
             py_p = p_y + v*delta_t*sin(yaw);
         }
         
-        double v_p = v;
-        double yaw_p = yaw + yawd*delta_t;
-        double yawd_p = yawd;
+		auto v_p = v;
+		auto yaw_p = yaw + yawd*delta_t;
+		auto yawd_p = yawd;
         
         //add noise
         px_p += 0.5*nu_a*delta_t2 * cos(yaw);
@@ -415,11 +388,8 @@ void UKF::PredictCovariance()
     for (int i = 0; i < n_sigma_; i++)
     {
         // state difference
-        x_diff = Xsig_pred_.col(i) - x_;
-        
-        //angle normalization
+        x_diff = Xsig_pred_.col(i) - x_;        
         x_diff(3) = Tools::NormalizeAngle(x_diff(3));
-        
         P_ += weights_(i) * x_diff * x_diff.transpose();
     }
 }
@@ -432,10 +402,10 @@ MatrixXd UKF::TransformRadarSigmaPointsIntoMeasurementSpace()
     for (int i = 0; i < n_sigma_; i++)
     {
         // extract values for better readibility
-        double px = Xsig_pred_(0, i);
-        double py = Xsig_pred_(1, i);
-        const double vel = Xsig_pred_(2, i);
-        const double yaw = Xsig_pred_(3, i);
+        auto px = Xsig_pred_(0, i);
+		auto py = Xsig_pred_(1, i);
+        const auto vel = Xsig_pred_(2, i);
+        const auto yaw = Xsig_pred_(3, i);
         
         // Avoid division by zero
         if (fabs(px) <= Tools::epsilon){
@@ -445,7 +415,7 @@ MatrixXd UKF::TransformRadarSigmaPointsIntoMeasurementSpace()
             py = Tools::epsilon;
         }
         
-        const double pho = sqrt(px * px + py * py);
+        const auto pho = sqrt(px * px + py * py);
         
         // measurement model
         Zsig(0, i) = pho;                                           //r

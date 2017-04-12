@@ -18,7 +18,6 @@ namespace Tools
 	// Returns projected values to X and Y as 2D vector.
 	Eigen::VectorXd PolarToCartesian(double rho, double phi);
     
-    double NormalizeAngle1(double phi);
     double NormalizeAngle(double phi);
 };
 
@@ -34,7 +33,7 @@ inline double Tools::NormalizeAngle(double phi)
 {
     static const double pi2 = 2. * M_PI;
     
-    if (phi < -M_PI || phi > M_PI )
+    if (phi < -M_PI || phi > M_PI)
     {
         phi = std::fmod(phi, pi2);
         if (phi > M_PI) phi -= pi2;

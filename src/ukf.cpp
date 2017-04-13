@@ -24,10 +24,10 @@ UKF::UKF()
 , lambda_(3 - n_aug_)
 {
     // if this is false, laser measurements will be ignored (except during init)
-    use_laser_ = true;
+	use_laser_ = true;
 
     // if this is false, radar measurements will be ignored (except during init)
-    use_radar_ = true;
+	use_radar_ = true;
 
     // initial state vector
     x_ = VectorXd(n_x_);
@@ -40,12 +40,13 @@ UKF::UKF()
     Xsig_pred_ = MatrixXd(n_x_, n_sigma_);
 
     // Process noise standard deviation longitudinal acceleration in m/s^2
-    std_a_ = 3.; // tune the noise value!!!
-    
+//    std_a_ = 3.; // tune the noise value!!!
+	std_a_ = 3.; // tune the noise value!!!
+
     // Process noise standard deviation yaw acceleration in rad/s^2
-//    std_yawdd_ = 0.7;//M_PI / 2.; // tune the noise value!!!
-    std_yawdd_ = M_PI / 2.; // tune the noise value!!!
-    
+    std_yawdd_ = 0.7;//M_PI / 2.; // tune the noise value!!!
+//    std_yawdd_ = M_PI / 2.; // tune the noise value!!!
+
     // Laser measurement noise standard deviation position1 in m
     std_laspx_ = 0.15;
 
@@ -138,8 +139,9 @@ void UKF::Init(const MeasurementPackage& pack)
         const auto& pos = Tools::PolarToCartesian(rho, phi); // returns (px, py)
 		// Velocity is approximated by radial velocity only
 		// because there is no information about azimuth velocity.
-        x_ << pos(0), pos(1), z(2), 0, 0; // sets (px, py, v, yaw_angle, yaw_rate)
-    }
+//        x_ << pos(0), pos(1), z(2), 0, 0; // sets (px, py, v, yaw_angle, yaw_rate)
+		x_ << pos(0), pos(1), 0, 0, 0; // sets (px, py, v, yaw_angle, yaw_rate)
+	}
     else if (pack.sensor_type_ == MeasurementPackage::LASER) {
         // Initialize state as (px, py, v, yaw_angle, yaw_rate)
         x_ << z(0), z(1), 0, 0, 0;

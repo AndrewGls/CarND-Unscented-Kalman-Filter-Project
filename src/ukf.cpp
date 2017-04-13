@@ -407,20 +407,26 @@ MatrixXd UKF::TransformRadarSigmaPointsIntoMeasurementSpace()
         const auto vel = Xsig_pred_(2, i);
         const auto yaw = Xsig_pred_(3, i);
         
-        // Avoid division by zero
+        // Avoids division by zero and undefined result of atan2(0,0).
+		int cnt = 0;
         if (fabs(px) <= Tools::epsilon){
             px = Tools::epsilon;
+			cnt++;
         }
         if (fabs(py) <= Tools::epsilon){
             py = Tools::epsilon;
-        }
+			cnt++;
+		}
         
         const auto pho = sqrt(px * px + py * py);
         
         // measurement model
         Zsig(0, i) = pho;                                           //r
         Zsig(1, i) = atan2(py, px);                                 //phi
-        Zsig(2, i) = (px * cos(yaw) *vel + py * sin(yaw) *vel) / pho;   //r_dot
+        Zsig(2, i) = (px * cos(yaw) * vel + py * sin(yaw) * vel) / pho;   //r_dot
+
+		if (cnt == 2)
+			Zsig(1, i) = 0; // replace returned 45 degree by zero for the case when px=0 & py=0.
     }
     
     return Zsig;

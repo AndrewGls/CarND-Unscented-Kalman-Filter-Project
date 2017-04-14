@@ -40,10 +40,10 @@ UKF::UKF()
     Xsig_pred_ = MatrixXd(n_x_, n_sigma_);
 
     // Process noise standard deviation longitudinal acceleration in m/s^2
-    std_a_ = 3.; // tuned noise value.
+	std_a_ = 3;// 1.5;// 3.; // tuned noise value.
     
     // Process noise standard deviation yaw acceleration in rad/s^2
-    std_yawdd_ = 0.7;//M_PI / 2.; // tuned noise value.
+    std_yawdd_ = 0.7;//0.6//M_PI / 2.; // tuned noise value.
     
     // Laser measurement noise standard deviation position1 in m
     std_laspx_ = 0.15;
@@ -103,7 +103,8 @@ void UKF::ProcessMeasurement(const MeasurementPackage& pack)
     
     // Do Update.
     if (use_laser_ && pack.IsLidar()) {
-        UpdateLidar(pack);
+//        UpdateLidar(pack);
+		UpdateLidar_Linear(pack); // linear update state gets the same result as sigma points with less computation overhead.
         previous_timestamp_ = pack.timestamp_;
     } else if (use_radar_ && pack.IsRadar()) {
         UpdateRadar(pack);
@@ -221,6 +222,41 @@ void UKF::UpdateLidar(const MeasurementPackage& pack)
     
     // Calculate Normalized Innovation Squared (NIS).
     NIS_radar_ = z_diff.transpose() * S.inverse() * z_diff;
+}
+
+// Linear version
+void UKF::UpdateLidar_Linear(const MeasurementPackage& pack)
+{
+	// Predict measurement:
+
+	MatrixXd H(2, 5);
+	H << 1, 0, 0, 0, 0,
+		 0, 1, 0, 0, 0;
+
+	const VectorXd& z = pack.raw_measurements_;
+	assert(z.rows() == 2);
+
+	VectorXd z_pred = H * x_;
+	VectorXd z_diff = z - z_pred; // residual
+
+	// Update the state by using Kalman Filter equations.
+
+	using Eigen::VectorXd;
+	using Eigen::MatrixXd;
+
+	MatrixXd I = MatrixXd::Identity(P_.rows(), P_.cols());
+
+	MatrixXd Ht = H.transpose();
+	MatrixXd PHt = P_ * Ht;
+	MatrixXd S = H * PHt + R_laser_;
+	MatrixXd K = PHt * S.inverse();
+
+	// new estimate
+	x_ = x_ + K * z_diff;
+	P_ = (I - K * H) * P_;
+
+	// Calculate Normalized Innovation Squared (NIS).
+	NIS_radar_ = z_diff.transpose() * S.inverse() * z_diff;
 }
 
 /**

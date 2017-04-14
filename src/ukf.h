@@ -87,7 +87,8 @@ private:
    * Updates the state and the state covariance matrix using a laser measurement
    * @param meas_package The measurement at k+1
    */
-  void UpdateLidar(const MeasurementPackage& meas_package);
+  void UpdateLidar(const MeasurementPackage& meas_package); // non-linear implementation using sigma points
+  void UpdateLidar_Linear(const MeasurementPackage& pack);  // linear implementation from EKF.
 
   /**
    * Updates the state and the state covariance matrix using a radar measurement
